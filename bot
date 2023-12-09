@@ -1,134 +1,72 @@
-from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+import requests
+import vk_api
+from vk_api.utils import get_random_id
+from moviepy.editor import VideoFileClip
+import io
 
 v = '5.199'
-user_tokens = {}
+group_id = ''  
+access_token = ''  
+upload_url = None
+upload_result = None
 
-def start(update: Update, context: CallbackContext) -> None:
-    update.message.reply_text('Нажмите /uploadvideo, чтобы загрузить видео.')
-
-def set_token(update: Update, context: CallbackContext) -> None:
-    chat_id = update.message.chat_id
-    user_id = update.message.from_user.id
-    args = context.args
-
-    if len(args) != 1:
-        context.bot.send_message(chat_id, 'Используйте команду /settoken с одним аргументом (ваш access_token).')
-    else:
-        access_token = args[0]
-        user_tokens[user_id] = access_token
-        context.bot.send_message(chat_id, 'Access_token успешно установлен.')
-
-def set_group_id(update: Update, context: CallbackContext) -> None:
-    chat_id = update.message.chat_id
-    user_id = update.message.from_user.id
-    args = context.args
-
-    if len(args) != 1:
-        context.bot.send_message(chat_id, 'Используйте команду /setgroupid с одним аргументом (ваш group_id).')
-    else:
-        group_id = args[0]
-        context.user_data['group_id'] = group_id
-        context.bot.send_message(chat_id, 'Group_id успешно установлен.')
-
-def upload_video(update: Update, context: CallbackContext) -> None:
-    chat_id = update.message.chat_id
-    user_id = update.message.from_user.id
-
-    if user_id not in user_tokens:
-        context.bot.send_message(chat_id, 'Для использования бота, предоставьте свой access_token с помощью команды /settoken.')
-    elif 'group_id' not in context.user_data:
-        context.bot.send_message(chat_id, 'Для загрузки видео, укажите group_id с помощью команды /setgroupid.')
-    else:
-        access_token = user_tokens[user_id]
-        group_id = context.user_data['group_id']
+def first():
+    global upload_url  
+    url = 'https://api.vk.com/method/stories.getVideoUploadServer'
 
 
-def upload_video(update: Update, context: CallbackContext) -> None:
-    chat_id = update.message.chat_id
-    global upload_url
-    global upload_result
+    params = {
+        'v': v,
+        'access_token': access_token,
+        'add_to_news': 1,
+        'group_id': group_id,
+    }
 
-    user_id = update.message.from_user.id
+    response = requests.get(url, params=params)
 
-    if user_id not in user_tokens:
-        context.bot.send_message(chat_id, 'Для использования бота, предоставьте свой access_token с помощью команды /settoken.')
-    else:
-        access_token = user_tokens[user_id]
+    if response.status_code == 200:
+        data = response.json()
+        upload_url = data['response']['upload_url']
+        return upload_url
 
-        url = 'https://api.vk.com/method/stories.getVideoUploadServer'
-        params = {
-            'v': v,
-            'access_token': access_token,
-            'add_to_news': 1,
-            'group_id': group_id,
-        }
+def second():
+    global upload_result  
 
-        response = requests.get(url, params=params)
+    files = {
+        'file': ('video.mp4', open('', 'rb'))  #нужно сделать, чтобы грузило загруженный видос
+    }
+    video_clip = VideoFileClip(io.BytesIO(files))
+    duration = video_clip.duration
+    aspect_ratio = video_clip.size[0] / video_clip.size[1]
+    video_clip.close()
 
-        if response.status_code == 200:
-            data = response.json()
-            upload_url = data['response']['upload_url']
-            print(upload_url)
-            context.bot.send_message(chat_id, 'Выберите видео для загрузки.')
-        else:
-            context.bot.send_message(chat_id, f'Ошибка при выполнении запроса: {response.status_code}')
+    if duration > 15 or aspect_ratio != 9 / 16:
+        print('Неверная длительность или соотношение сторон видео. Загрузка отменена.')
+        return
+    response = requests.post(upload_url, files=files)
 
-def handle_video(update: Update, context: CallbackContext) -> None:
-    chat_id = update.message.chat_id
-    user_id = update.message.from_user.id
+    if response.status_code == 200:
+        data = response.json()
+        upload_result = data['response'].get('upload_result')
+        return upload_result
 
-    if user_id in user_tokens and user_id in user_tokens and upload_url:
-        access_token = user_tokens[user_id]
+def third():
+    url = 'https://api.vk.com/method/stories.save'
 
-        video_file_id = update.message.video.file_id
-        files = {
-             'file': ('video.mp4', context.bot.get_file(video_file_id).download_as_bytearray())
-        }
+    params = {
+        'access_token': access_token,
+        'upload_results': upload_result,
+        'v': v,
+    }
 
-        response = requests.post(upload_url, files=files)
+    response = requests.post(url, params=params)
 
-        if response.status_code == 200:
-            data = response.json()
+    if response.status_code == 200:
+        data = response.json()
+        print(data)
 
-            if 'response' in data:
-                upload_result = data['response'].get('upload_result')
-                print(upload_result)
-                url3 = 'https://api.vk.com/method/stories.save'
-                params = {
-                    'access_token': access_token,
-                    'upload_results': upload_result,
-                    'v': v,
-                }
-
-                response_save = requests.post(url3, params=params)
-
-                if response_save.status_code == 200:
-                    data_save = response_save.json()
-                    if 'response' in data_save:
-                        context.bot.send_message(chat_id, 'История успешно загружена!')
-                    else:
-                        context.bot.send_message(chat_id, f'Ошибка при сохранении истории: {data_save}')
-                else:
-                    context.bot.send_message(chat_id, f'Ошибка при сохранении истории: {response_save.status_code}')
-            else:
-                context.bot.send_message(chat_id, f'Ошибка при выполнении запроса: {data}')
-        else:
-            context.bot.send_message(chat_id, f'Ошибка при выполнении запроса: {response.status_code}')
-    else:
-        context.bot.send_message(chat_id, 'Сначала выполните /uploadvideo.')
-
-def main():
-    updater = Updater('6437077338:AAHKXnlqXLY4k-qwlCwmyCUmGwclmimczt0', use_context=True)
-    dp = updater.dispatcher
-
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("settoken", set_token, pass_args=True))
-    dp.add_handler(CommandHandler("uploadvideo", upload_video))
-    dp.add_handler(MessageHandler(Filters.video & ~Filters.command, handle_video))
-
-    updater.start_polling()
-    updater.idle()
 
 if __name__ == '__main__':
-    main()
+    first()
+    second()
+    third()
