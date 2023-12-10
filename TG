@@ -1,0 +1,39 @@
+import os
+from telegram import Bot
+from telegram import Update
+from telegram.ext import Updater, CommandHandler, CallbackContext
+from telegram.ext import MessageHandler, Filters
+
+TOKEN = ''
+CHANNEL_USERNAME = ''
+
+def get_latest_video(update: Update, context: CallbackContext) -> None:
+    user_channel = context.args[0] if context.args else CHANNEL_USERNAME
+
+    bot = context.bot
+
+    try:
+        messages = bot.get_chat_history(chat_id=user_channel, limit=1)
+        latest_message = messages[0]
+
+        if latest_message.media_group and latest_message.media_group[0].document.mime_type == 'video/mp4':
+            video_file = latest_message.media_group[0].document.file_id
+
+        else:
+#ДОБАВИТЬ ЛОГИКУ ОШИБКИ
+            pass
+    except Exception as e:
+#ДОБАВИТЬ ЛОГИКУ ОШИБКИ
+        pass
+#ДОБАВИТЬ ЛОГИКУ ОШИБКИ
+def main() -> None:
+    updater = Updater(token=TOKEN)
+    dispatcher = updater.dispatcher
+
+    dispatcher.add_handler(CommandHandler("get_latest_video", get_latest_video, pass_args=True))
+
+    updater.start_polling()
+    updater.idle()
+
+if __name__ == '__main__':
+    main()
