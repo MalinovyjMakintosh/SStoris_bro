@@ -9,7 +9,30 @@ group_id = ''
 access_token = ''  
 upload_url = None
 upload_result = None
-
+link_text = [
+to_store, vote more, book, order, enrol, fill, signup, buy, ticket, write, open, learn_more, view, go_to, contact, watch, play, install, read 
+]
+#
+#to_store — В магазин.
+#vote — Голосовать.
+#more — Ещё.
+#book — Забронировать.
+#order — Заказать.
+#enroll — Записаться.
+#fill — Заполнить.
+#signup — Зарегистрироваться.
+#buy — Купить.
+#ticket — Купить билет.
+#write — Написать.
+#open — Открыть.
+#learn_more — Подробнее. Значение используется по умолчанию.
+#view — Посмотреть.
+#go_to — Перейти.
+#contact — Связаться.
+#watch — Смотреть.
+#play — Слушать.
+#install — Установить.
+#read — Читать.
 def first():
     global upload_url  
     url = 'https://api.vk.com/method/stories.getVideoUploadServer'
@@ -20,6 +43,7 @@ def first():
         'access_token': access_token,
         'add_to_news': 1,
         'group_id': group_id,
+        'link_text' : link_text
     }
 
     response = requests.get(url, params=params)
