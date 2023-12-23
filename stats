@@ -1,0 +1,44 @@
+import re
+
+def extract_owner_post_ids(url):
+    match = re.search(r'wall-(\d+)_(\d+)', url)
+    if match:
+        owner_id = int(match.group(1))
+        post_id = int(match.group(2))
+        return owner_id, post_id
+    else:
+        print("Неверный формат ссылки")
+
+# Пример использования
+url = 'vk.com/wall-29246653_184828'
+owner_id, post_id = extract_owner_post_ids(url)
+
+
+import requests
+
+def get_story_stats(owner_id, story_id, access_token):
+    api_url = "https://api.vk.com/method/stories.getStats"
+    
+    params = {
+        'owner_id': owner_id,
+        'story_id': story_id,
+        'access_token': access_token,
+        'v': '5.131'  
+    }
+
+    response = requests.get(api_url, params=params)
+    data = response.json()
+
+    if 'error' in data:
+        print(f"Ошибка: {data['error']['error_msg']}")
+        return None
+    else:
+        return data['response']
+
+# Пример использования
+
+access_token = 'Ваш_токен'
+
+story_stats = get_story_stats(owner_id, story_id, access_token)
+if story_stats:
+    print("Статистика истории:", story_stats)
