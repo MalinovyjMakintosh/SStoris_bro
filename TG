@@ -8,24 +8,34 @@ TOKEN = ''
 CHANNEL_USERNAME = ''
 
 def get_latest_video(update: Update, context: CallbackContext) -> None:
-    user_channel = context.args[0] if context.args else CHANNEL_USERNAME
-
-    bot = context.bot
-
     try:
+        user_channel = context.args[0] if context.args else CHANNEL_USERNAME
+
+        bot = context.bot
+
+        # Получаем последнее сообщение
         messages = bot.get_chat_history(chat_id=user_channel, limit=1)
         latest_message = messages[0]
 
+        # Проверяем, является ли последнее сообщение видео
         if latest_message.media_group and latest_message.media_group[0].document.mime_type == 'video/mp4':
             video_file = latest_message.media_group[0].document.file_id
 
+            # Получаем видео N+155
+            n_plus_155_index = min(len(messages), 155)  # Обеспечиваем, чтобы не выйти за границы
+            video_n_plus_155 = messages[n_plus_155_index - 1].media_group[0].document.file_id
+
+            # Выполняем необходимые действия с video_file и video_n_plus_155 
+            # ...
+
         else:
-#ДОБАВИТЬ ЛОГИКУ ОШИБКИ
-            pass
+            # Обрабатываем случай, когда последнее сообщение не является видео
+            update.message.reply_text("Последнее сообщение не является видео.")
+
     except Exception as e:
-#ДОБАВИТЬ ЛОГИКУ ОШИБКИ
-        pass
-#ДОБАВИТЬ ЛОГИКУ ОШИБКИ
+        # Обрабатываем исключения
+        update.message.reply_text(f"Произошла ошибка: {str(e)}")
+
 def main() -> None:
     updater = Updater(token=TOKEN)
     dispatcher = updater.dispatcher
