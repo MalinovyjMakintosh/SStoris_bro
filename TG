@@ -1,4 +1,5 @@
 import os
+import sqlite3
 from telegram import Bot
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, CallbackContext
@@ -6,37 +7,73 @@ from telegram.ext import MessageHandler, Filters
 
 TOKEN = ''
 CHANNEL_USERNAME = ''
+DATABASE_FILE = 'video_tracker.db'
+
+# Создаем таблицу в базе данных, если ее не существует
+def create_table():
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS videos (
+            channel TEXT,
+            file_id TEXT,
+            PRIMARY KEY (channel, file_id)
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+# было ли видео уже обработано
+def is_video_processed(channel, file_id):
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM videos WHERE channel=? AND file_id=?', (channel, file_id))
+    result = cursor.fetchone()
+    conn.close()
+    return result is not None
+
+# Функция для отметки видео как обработанного
+def mark_video_processed(channel, file_id):
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO videos (channel, file_id) VALUES (?, ?)', (channel, file_id))
+    conn.commit()
+    conn.close()
+
 
 def get_latest_video(update: Update, context: CallbackContext) -> None:
     try:
         user_channel = context.args[0] if context.args else CHANNEL_USERNAME
-
         bot = context.bot
 
-        # Получаем последнее сообщение
         messages = bot.get_chat_history(chat_id=user_channel, limit=1)
         latest_message = messages[0]
 
-        # Проверяем, является ли последнее сообщение видео
-        if latest_message.media_group and latest_message.media_group[0].document.mime_type == 'video/mp4':
+        if (
+            latest_message.media_group
+            and latest_message.media_group[0].document.mime_type == 'video/mp4'
+            and not is_video_processed(user_channel, latest_message.media_group[0].document.file_id)
+        ):
             video_file = latest_message.media_group[0].document.file_id
 
-            # Получаем видео N+155
-            n_plus_155_index = min(len(messages), 155)  # Обеспечиваем, чтобы не выйти за границы
-            video_n_plus_155 = messages[n_plus_155_index - 1].media_group[0].document.file_id
+            # Обрабатываем видео
+            
 
-            # Выполняем необходимые действия с video_file и video_n_plus_155 
-            # ...
+            # Отмечаем видео как обработанное
+            mark_video_processed(user_channel, video_file)
 
         else:
-            # Обрабатываем случай, когда последнее сообщение не является видео
-            update.message.reply_text("Последнее сообщение не является видео.")
+            # Обрабатываем случай, когда последнее сообщение не является новым видео
+            update.message.reply_text("Последнее сообщение не является новым видео или уже было обработано.")
 
     except Exception as e:
         # Обрабатываем исключения
         update.message.reply_text(f"Произошла ошибка: {str(e)}")
 
 def main() -> None:
+    # Создаем таблицу в базе данных
+    create_table()
+
     updater = Updater(token=TOKEN)
     dispatcher = updater.dispatcher
 
